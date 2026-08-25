@@ -1,0 +1,16 @@
+# Compiled files
+*.o
+*.out
+*.exe
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# CLion
+.idea/
+
+# Build directories
+build/
