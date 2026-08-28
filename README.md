@@ -25,24 +25,22 @@ The project aims to manage different aspects of hostel operations, including stu
 
 ### Phase 1
 
-The initial project structure has been created and the basic Maintenance Worker module has been implemented.
+The initial project structure has been created and the basic Maintenance module has been implemented.
 
-### Maintenance Worker
+### Maintenance Module
 
 The current implementation includes:
 
-- Worker information management
-- Worker ID
-- Worker name
-- Worker skill
-- Worker location
-- Worker availability
-- Worker workload
-- Constructor for worker initialization
-- Getter functions
-- Complaint assignment
-- Complaint completion
+- `MaintenanceWorker` class
+- `MaintenanceManager` class
+- Worker registration
+- Automatic Worker ID generation
+- Worker lookup by ID
+- Worker removal
+- Worker workload management
+- Worker availability management
 - Worker location update
+- `unordered_map` for storing workers
 
 ## Project Structure
 
@@ -50,10 +48,12 @@ The current implementation includes:
 Hostel-Hotspot/
 │
 ├── include/
-│   └── MaintenanceWorker.h
+│   ├── MaintenanceWorker.h
+│   └── MaintenanceManager.h
 │
 ├── src/
-│   └── MaintenanceWorker.cpp
+│   ├── MaintenanceWorker.cpp
+│   └── MaintenanceManager.cpp
 │
 ├── tests/
 ├── data/

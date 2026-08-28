@@ -1,10 +1,12 @@
 #include <iostream>
 #include "include/MaintenanceWorker.h"
+#include "include/MaintenanceManager.h"
 
 using namespace std;
 
 int main()
 {
+    /* Worker test case
     MaintenanceWorker worker(
         "W001",
         "Amit Kumar",
@@ -31,6 +33,24 @@ int main()
     {
         cout << "Not available" << endl;
     }
+*/
 
+    MaintenanceManager manager;
+    manager.addWorker("Amit Kumar","Electrical", "Block A");
+    manager.addWorker("Satish","Plumber", "Block C");
+    /*
+    MaintenanceWorker* worker = manager.findWorker("W020");
+
+    if(worker == nullptr)
+    {
+        cout << "Not found" << endl;
+    }
+    else
+    {
+       cout << worker -> getName();
+    }
+*/
+manager.removeWorker("W001");
+manager.removeWorker("W001");
     return 0;
 }
