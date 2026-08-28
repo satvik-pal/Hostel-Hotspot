@@ -46,6 +46,7 @@ The current implementation includes:
 
 ## Project Structure
 
+
 ```text
 Hostel-Hotspot/
 │
