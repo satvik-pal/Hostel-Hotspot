@@ -1,31 +1,44 @@
 #ifndef MAINTENANCE_WORKER_H
 #define MAINTENANCE_WORKER_H
+
 #include <string>
 using namespace std;
 
 class MaintenanceWorker
 {
+    public:
+        static constexpr int MAX_WORKLOAD = 10;
+
     private:
-        string workerId;
-        string name;
-        string skill;
-        string location;
-        bool available;
-        int workload;
+        std::string workerId;
+        std::string name;
+        std::string skill;
+        std::string location;
+        bool onDuty;        // set by admin (leave, shift, sick)
+        int workload;       // complaints currently assigned
 
     public:
-        MaintenanceWorker(string wid , string n, string s, string l, bool a, int wl);
+        MaintenanceWorker(const std::string& workerId,
+                          const std::string& name,
+                          const std::string& skill,
+                          const std::string& location,
+                          bool onDuty,
+                          int workload);
 
-        string getWorkerId();
-        string getName();
-        string getSkill();
-        string getLocation();
-        bool   getAvailability();
-        int    getWorkload();
+        std::string getWorkerId() const;
+        std::string getName() const;
+        std::string getSkill() const;
+        std::string getLocation() const;
+        int         getWorkload() const;
 
-        void assignComplaint();
-        void completeComplaint();
-        void updateLocation(string new_loc);
+        bool isOnDuty() const;
+        bool hasCapacity() const;
+        bool isAvailable() const;
+
+        void setOnDuty(bool status);
+        bool assignComplaint();
+        bool completeComplaint();
+        void updateLocation(const std::string& newLocation);
 };
 
 #endif
