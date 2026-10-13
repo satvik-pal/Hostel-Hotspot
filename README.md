@@ -17,7 +17,7 @@ It aims to manage the main parts of hostel operations: students, hostel infrastr
 - C++17
 - Object-Oriented Programming (OOP)
 - Data Structures and Algorithms (DSA)
-- Standard Template Library (STL)
+- Custom data structures (no STL containers or algorithms)
 - Git and GitHub
 
 Planned for later phases: CMake, SQLite (persistence), Qt (desktop UI).
@@ -34,6 +34,7 @@ Initial project structure and the foundation of the Maintenance module.
 - `MaintenanceManager` refactored: returns results instead of printing
 - Skill-based complaint allocation
 - Assignment tracking (which worker handles which complaint)
+- Own hash table (`HashMap`) replacing `std::unordered_map`
 - Self-checking test suite covering the whole module
 
 ## Maintenance Module
@@ -84,11 +85,24 @@ On-duty status is stored; availability is computed, so it can never get out of s
 
 | Structure | Purpose | Complexity |
 |---|---|---|
-| `unordered_map<string, MaintenanceWorker>` | Worker ID → worker | Average O(1) lookup, worst case O(n) |
-| `unordered_map<string, string>` | Complaint ID → worker ID | Average O(1) lookup, worst case O(n) |
+| `HashMap<MaintenanceWorker>` | Worker ID → worker | Average O(1) insert/find/erase, worst case O(n) |
+| `HashMap<std::string>` | Complaint ID → worker ID | Average O(1) insert/find/erase, worst case O(n) |
 | Linear scan in `allocateComplaint()` | Select the best available worker | O(n) over all workers |
 
-A linear scan was chosen over a priority queue because a worker's workload changes after every assignment and completion, and `std::priority_queue` cannot update existing entries. For a hostel-sized team (tens of workers), O(n) is simple and fast enough.
+A linear scan was chosen over a heap because a worker's workload changes after every assignment and completion, and a plain binary heap cannot cheaply update existing entries. For a hostel-sized team (tens of workers), O(n) is simple and fast enough.
+
+### HashMap (own implementation)
+
+The project does not use STL containers or algorithms for its data structures, so `HashMap` (`include/HashMap.h`) is implemented from scratch:
+
+- **Structure:** array of buckets; each bucket is a singly linked list (separate chaining)
+- **Hash function:** djb2 (`hash = hash * 33 + c`, starting at 5381), then `% capacity`
+- **Insert:** new node at the head of its bucket's list; duplicate keys are refused
+- **Rehashing:** when the load factor would exceed 0.75, capacity doubles (starting at 16) and every node is relinked into its new bucket
+- **Erase:** standard linked-list unlink (head or middle), then `delete`
+- **Memory:** the destructor frees every node and the bucket array; copying is disabled to prevent double deletion
+- **Iteration:** `forEach(action)` calls a function on every entry
+- **Template:** `HashMap<V>` works for any value type; it lives entirely in the header because templates are compiled where they are used
 
 ### Known limitations
 
@@ -114,7 +128,8 @@ g++ -std=c++17 -Iinclude main.cpp src/MaintenanceWorker.cpp src/MaintenanceManag
 ./hostel
 ```
 
-- `-std=c++17` is required (`std::optional` and structured bindings are C++17 features)
+- `-std=c++17` is required (`std::optional` is a C++17 feature)
+- `HashMap.h` is header-only, so it does not need to be listed
 - `-Iinclude` tells the compiler where to find the header files
 - Every `.cpp` file must be listed so the linker can find all function definitions
 
@@ -123,7 +138,7 @@ g++ -std=c++17 -Iinclude main.cpp src/MaintenanceWorker.cpp src/MaintenanceManag
 `main.cpp` currently runs a self-checking test suite for the whole module, from creating a worker to allocating and completing complaints. Each check prints `[PASS]` or `[FAIL]`, followed by a summary:
 
 ```text
-Result: 55 passed, 0 failed
+Result: 70 passed, 0 failed
 ```
 
 The program exits with code `0` if all tests pass and `1` otherwise.
@@ -138,6 +153,7 @@ Covered:
 6. Allocation: tie-break, lowest workload, skill matching, missing skill, off-duty workers, duplicate complaints
 7. All workers full, and reuse of a freed slot
 8. Completion and removal rules
+9. `HashMap`: insert, duplicates, find, modify through pointer, 1000 keys with rehashing, erase, `forEach`
 
 The tests will move to `tests/` once the CMake build is set up.
 
@@ -147,6 +163,7 @@ The tests will move to `tests/` once the CMake build is set up.
 Hostel-Hotspot/
 │
 ├── include/
+│   ├── HashMap.h
 │   ├── MaintenanceWorker.h
 │   └── MaintenanceManager.h
 │

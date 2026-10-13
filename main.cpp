@@ -2,6 +2,7 @@
 #include <optional>
 #include <string>
 #include "MaintenanceManager.h"
+#include "HashMap.h"
 
 using namespace std;
 
@@ -203,6 +204,54 @@ void testCompletion()
     check(m.removeWorker(amit),                   "free worker can be removed");
 }
 
+void testHashMap()
+{
+    section("9. HashMap (own implementation)");
+
+    HashMap<int> map;
+    check(map.size() == 0,                 "starts empty");
+    check(map.insert("A", 1),              "insert new key");
+    check(!map.insert("A", 99),            "duplicate key is refused");
+    check(map.find("A") != nullptr && *map.find("A") == 1, "find returns stored value");
+    check(map.find("Z") == nullptr,        "missing key returns nullptr");
+
+    *map.find("A") = 5;
+    check(*map.find("A") == 5,             "value can be modified through the pointer");
+
+    // Many keys: forces collisions and several rehashes (16 -> 32 -> 64 -> ...)
+    const int N = 1000;
+    bool allInserted = true;
+    for (int i = 0; i < N; i++)
+    {
+        if (!map.insert("K" + to_string(i), i)) allInserted = false;
+    }
+    check(allInserted,                     "1000 keys inserted (with rehashing)");
+    check(map.size() == N + 1,             "size is correct after rehashing");
+
+    bool allFound = true;
+    for (int i = 0; i < N; i++)
+    {
+        int* v = map.find("K" + to_string(i));
+        if (v == nullptr || *v != i) allFound = false;
+    }
+    check(allFound,                        "every key still found after rehashing");
+
+    bool allErased = true;
+    for (int i = 0; i < N; i += 2)
+    {
+        if (!map.erase("K" + to_string(i))) allErased = false;
+    }
+    check(allErased,                       "erase every even key");
+    check(map.size() == N / 2 + 1,         "size correct after erasing");
+    check(map.find("K0") == nullptr,       "erased key is gone");
+    check(map.find("K1") != nullptr,       "neighbouring key survives erase");
+    check(!map.erase("K0"),                "erasing a missing key returns false");
+
+    int visited = 0;
+    map.forEach([&](const string& key, int& value) { (void)key; (void)value; visited++; });
+    check(visited == map.size(),           "forEach visits every entry exactly once");
+}
+
 // ---------- Run everything ----------
 
 int main()
@@ -217,6 +266,7 @@ int main()
     testAllocation();
     testFullWorkers();
     testCompletion();
+    testHashMap();
 
     cout << endl << "Result: " << passed << " passed, " << failed << " failed" << endl;
 

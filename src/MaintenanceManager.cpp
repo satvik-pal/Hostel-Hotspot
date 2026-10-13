@@ -25,40 +25,33 @@ std::string MaintenanceManager::addWorker(const std::string& name,
     std::string workerId = generateWorkerId();
 
     MaintenanceWorker worker(workerId, name, skill, location, true, 0);
-    workers.insert({workerId, worker});
+    workers.insert(workerId, worker);
 
     return workerId;
 }
 
 MaintenanceWorker* MaintenanceManager::findWorker(const std::string& workerId)
 {
-    auto it = workers.find(workerId);
-
-    if (it != workers.end())
-    {
-        return &it->second;
-    }
-    return nullptr;
+    return workers.find(workerId);
 }
 
 bool MaintenanceManager::removeWorker(const std::string& workerId)
 {
-    auto it = workers.find(workerId);
+    MaintenanceWorker* worker = workers.find(workerId);
 
-    if (it == workers.end())
+    if (worker == nullptr)
     {
         return false;                       // no such worker
     }
-    if (it->second.getWorkload() > 0)
+    if (worker->getWorkload() > 0)
     {
         return false;                       // still has open complaints
     }
 
-    workers.erase(it);
-    return true;
+    return workers.erase(workerId);
 }
 
-std::size_t MaintenanceManager::getWorkerCount() const
+int MaintenanceManager::getWorkerCount() const
 {
     return workers.size();
 }
@@ -78,28 +71,30 @@ bool MaintenanceManager::isBetterCandidate(const MaintenanceWorker& candidate,
 std::optional<std::string> MaintenanceManager::allocateComplaint(const std::string& complaintId,
                                                                  const std::string& requiredSkill)
 {
-    if (assignments.count(complaintId) > 0)
+    if (assignments.contains(complaintId))
     {
         return std::nullopt;                // already assigned
     }
 
     MaintenanceWorker* best = nullptr;
 
-    for (auto& [workerId, worker] : workers)
+    workers.forEach([&](const std::string& workerId, MaintenanceWorker& worker)
     {
+        (void)workerId;                     // key not needed here
+
         if (worker.getSkill() != requiredSkill)
         {
-            continue;
+            return;
         }
         if (!worker.isAvailable())
         {
-            continue;
+            return;
         }
         if (best == nullptr || isBetterCandidate(worker, *best))
         {
             best = &worker;
         }
-    }
+    });
 
     if (best == nullptr)
     {
@@ -107,37 +102,37 @@ std::optional<std::string> MaintenanceManager::allocateComplaint(const std::stri
     }
 
     best->assignComplaint();
-    assignments[complaintId] = best->getWorkerId();
+    assignments.insert(complaintId, best->getWorkerId());
 
     return best->getWorkerId();
 }
 
 bool MaintenanceManager::completeComplaint(const std::string& complaintId)
 {
-    auto assignmentIt = assignments.find(complaintId);
+    std::string* assignedId = assignments.find(complaintId);
 
-    if (assignmentIt == assignments.end())
+    if (assignedId == nullptr)
     {
         return false;                       // never assigned
     }
 
-    MaintenanceWorker* worker = findWorker(assignmentIt->second);
+    MaintenanceWorker* worker = workers.find(*assignedId);
     if (worker != nullptr)
     {
         worker->completeComplaint();
     }
 
-    assignments.erase(assignmentIt);
+    assignments.erase(complaintId);         // assignedId is invalid after this line
     return true;
 }
 
 std::optional<std::string> MaintenanceManager::getAssignedWorker(const std::string& complaintId) const
 {
-    auto it = assignments.find(complaintId);
+    const std::string* assignedId = assignments.find(complaintId);
 
-    if (it == assignments.end())
+    if (assignedId == nullptr)
     {
         return std::nullopt;
     }
-    return it->second;
+    return *assignedId;
 }
