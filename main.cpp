@@ -47,18 +47,18 @@ public:
 int main() {
     HostelGraph hostel;
 
-    // Locations (vertices)
-    hostel.addVertex("Main Gate");     // 0
-    hostel.addVertex("Reception");     // 1
-    hostel.addVertex("Room 101");      // 2
-    hostel.addVertex("Room 102");      // 3
-    hostel.addVertex("Room 103");      // 4
-    hostel.addVertex("Mess");          // 5
-    hostel.addVertex("Common Room");   // 6
-    hostel.addVertex("Washroom");      // 7
-    hostel.addVertex("Stairs");        // 8
+    
+    hostel.addVertex("Main Gate");     
+    hostel.addVertex("Reception");     
+    hostel.addVertex("Room 101");      
+    hostel.addVertex("Room 102");      
+    hostel.addVertex("Room 103");      
+    hostel.addVertex("Mess");          
+    hostel.addVertex("Common Room");   
+    hostel.addVertex("Washroom");      
+    hostel.addVertex("Stairs");        
 
-    // Paths between locations (edges) with distance in metres
+    
     hostel.addEdge(0, 1, 10);
     hostel.addEdge(1, 2, 15);
     hostel.addEdge(2, 3, 8);
