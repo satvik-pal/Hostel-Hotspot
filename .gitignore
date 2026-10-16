@@ -1,0 +1,6 @@
+hostelpulse
+hostelpulse.exe
+*.o
+*.out
+.vscode/
+.idea/
