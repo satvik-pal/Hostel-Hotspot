@@ -1,7 +1,11 @@
+
 #include <iostream>
-#include <vector>
-#include <string>
+#include <cstring>
 using namespace std;
+
+#define SIZE 9
+#define MAX_EDGES 10
+#define NAME_SIZE 30
 
 struct Edge {
     int destination;
@@ -10,33 +14,59 @@ struct Edge {
 
 class HostelGraph {
 private:
-    vector<string> vertices;
-    vector<vector<Edge>> adjList;
+    char vertices[SIZE][NAME_SIZE];
+    Edge adjList[SIZE][MAX_EDGES];
+    int edgeCount[SIZE];
+    int vertexCount;
 
 public:
-    void addVertex(const string& name) {
-        vertices.push_back(name);
-        adjList.push_back({});
+    HostelGraph() {
+        vertexCount = 0;
+
+        for (int i = 0; i < SIZE; i++) {
+            edgeCount[i] = 0;
+        }
+    }
+
+    void addVertex(const char name[]) {
+        if (vertexCount >= SIZE) {
+            cout << "Maximum locations reached\n";
+            return;
+        }
+
+        strcpy(vertices[vertexCount], name);
+        vertexCount++;
     }
 
     void addEdge(int u, int v, int distance) {
-        if (u < 0 || v < 0 || u >= (int)vertices.size() || v >= (int)vertices.size()) {
-            cout << "Invalid vertex index\n";
+        if (u < 0 || v < 0 ||
+            u >= vertexCount || v >= vertexCount) {
+            cout << "Invalid location index\n";
             return;
         }
-        adjList[u].push_back({v, distance});
-        adjList[v].push_back({u, distance});
+
+        if (edgeCount[u] >= MAX_EDGES ||
+            edgeCount[v] >= MAX_EDGES) {
+            cout << "Maximum connections reached\n";
+            return;
+        }
+
+        adjList[u][edgeCount[u]++] = {v, distance};
+        adjList[v][edgeCount[v]++] = {u, distance};
     }
 
-    void displayGraph() const {
-        cout << "\n  HOSTEL INFRASTRUCTURE GRAPH   \n";
+    void displayGraph() {
+        cout << "\nHOSTEL INFRASTRUCTURE GRAPH\n";
 
-        for (size_t i = 0; i < vertices.size(); i++) {
+        for (int i = 0; i < vertexCount; i++) {
             cout << vertices[i] << " -> ";
 
-            for (const auto& edge : adjList[i]) {
-                cout << vertices[edge.destination]
-                     << " (" << edge.weight << "m)  ";
+            for (int j = 0; j < edgeCount[i]; j++) {
+                int dest = adjList[i][j].destination;
+
+                cout << vertices[dest]
+                     << " (" << adjList[i][j].weight
+                     << "m)  ";
             }
 
             cout << endl;
@@ -47,18 +77,16 @@ public:
 int main() {
     HostelGraph hostel;
 
-    
-    hostel.addVertex("Main Gate");     
-    hostel.addVertex("Reception");     
-    hostel.addVertex("Room 101");      
-    hostel.addVertex("Room 102");      
-    hostel.addVertex("Room 103");      
-    hostel.addVertex("Mess");          
-    hostel.addVertex("Common Room");   
-    hostel.addVertex("Washroom");      
-    hostel.addVertex("Stairs");        
+    hostel.addVertex("Main Gate");
+    hostel.addVertex("Reception");
+    hostel.addVertex("Room 101");
+    hostel.addVertex("Room 102");
+    hostel.addVertex("Room 103");
+    hostel.addVertex("Mess");
+    hostel.addVertex("Common Room");
+    hostel.addVertex("Washroom");
+    hostel.addVertex("Stairs");
 
-    
     hostel.addEdge(0, 1, 10);
     hostel.addEdge(1, 2, 15);
     hostel.addEdge(2, 3, 8);
