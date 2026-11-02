@@ -3,6 +3,7 @@
 #include <string>
 #include "MaintenanceManager.h"
 #include "HashMap.h"
+#include "MinHeap.h"
 
 using namespace std;
 
@@ -251,7 +252,85 @@ void testHashMap()
     map.forEach([&](const string& key, int& value) { (void)key; (void)value; visited++; });
     check(visited == map.size(),           "forEach visits every entry exactly once");
 }
+struct Task
+{
+    int priority;
+    int order;
+    bool operator<(const Task& other) const { return priority < other.priority; }
+};
 
+void testMinHeap()
+{
+    section("10. MinHeap (own implementation)");
+
+    MinHeap<int> heap;
+    int value = -1;
+
+    check(heap.isEmpty(),                    "starts empty");
+    check(!heap.pop(value),                  "pop on empty heap returns false");
+    check(!heap.peek(value),                 "peek on empty heap returns false");
+
+    heap.push(5);
+    heap.push(2);
+    heap.push(8);
+    heap.push(1);
+    heap.push(9);
+    check(heap.size() == 5,                  "size is 5 after five pushes");
+    check(heap.peek(value) && value == 1,    "peek returns the smallest");
+    check(heap.size() == 5,                  "peek does not remove");
+
+    bool sorted = true;
+    int expected[] = {1, 2, 5, 8, 9};
+    for (int i = 0; i < 5; i++)
+    {
+        if (!heap.pop(value) || value != expected[i]) sorted = false;
+    }
+    check(sorted,                            "pops come out in ascending order");
+    check(heap.isEmpty(),                    "empty after popping everything");
+
+    heap.push(3);
+    heap.push(3);
+    heap.push(3);
+    bool duplicatesOk = true;
+    for (int i = 0; i < 3; i++)
+    {
+        if (!heap.pop(value) || value != 3) duplicatesOk = false;
+    }
+    check(duplicatesOk,                      "duplicate values are all kept");
+
+    heap.push(10);
+    heap.push(4);
+    heap.pop(value);                         // removes 4
+    heap.push(7);
+    heap.push(1);
+    bool interleavedOk = heap.pop(value) && value == 1 &&
+                         heap.pop(value) && value == 7 &&
+                         heap.pop(value) && value == 10;
+    check(interleavedOk,                     "mixed pushes and pops stay ordered");
+
+    // 1000 values in scrambled order: forces several array growths (16 -> 32 -> ... -> 1024)
+    const int N = 1000;
+    for (int i = 0; i < N; i++)
+    {
+        heap.push((i * 37) % N);             // 37 and 1000 share no factor, so every value 0..999 appears once
+    }
+    check(heap.size() == N,                  "1000 items pushed (with growth)");
+
+    bool allAscending = true;
+    for (int i = 0; i < N; i++)
+    {
+        if (!heap.pop(value) || value != i) allAscending = false;
+    }
+    check(allAscending,                      "1000 items popped in exact ascending order");
+    check(heap.isEmpty(),                    "empty again after 1000 pops");
+
+    MinHeap<Task> tasks;
+    tasks.push({3, 1});
+    tasks.push({1, 2});
+    tasks.push({2, 3});
+    Task t{0, 0};
+    check(tasks.pop(t) && t.priority == 1 && t.order == 2, "works with a custom struct using operator<");
+}
 // ---------- Run everything ----------
 
 int main()
@@ -267,8 +346,12 @@ int main()
     testFullWorkers();
     testCompletion();
     testHashMap();
+    testMinHeap();
 
     cout << endl << "Result: " << passed << " passed, " << failed << " failed" << endl;
 
     return failed == 0 ? 0 : 1;
+
+    
 }
+
