@@ -31,7 +31,10 @@ struct HeapEntry
     }
 };
 
-// Dijkstra's shortest-path algorithm.
+// Core of Dijkstra's algorithm, shared by the two public functions below.
+// Fills dist[] and parent[] for every vertex reachable from `source`.
+// If `stopAt` is a valid vertex, it stops as soon as that vertex is final;
+// pass -1 to compute distances to ALL vertices.
 //
 // Works with ANY graph class that provides:
 //   int  getVertexCount() const;
@@ -41,21 +44,19 @@ struct HeapEntry
 // Requirement: all edge weights must be >= 0.
 // Time: O((V + E) log V)    Space: O(V + E)
 template <typename Graph>
-RouteResult findShortestRoute(const Graph& graph, int source, int destination)
+void runDijkstra(const Graph& graph, int source, int stopAt,
+                 DynamicArray<int>& dist, DynamicArray<int>& parent)
 {
-    RouteResult result;
     int vertexCount = graph.getVertexCount();
 
-    // Invalid locations: no route
-    if (source < 0 || source >= vertexCount ||
-        destination < 0 || destination >= vertexCount)
-    {
-        return result;
-    }
-
     // Step 1: every distance starts as "unreachable", no parents yet
-    DynamicArray<int> dist(vertexCount, UNREACHABLE_DISTANCE);
-    DynamicArray<int> parent(vertexCount, -1);
+    dist = DynamicArray<int>(vertexCount, UNREACHABLE_DISTANCE);
+    parent = DynamicArray<int>(vertexCount, -1);
+
+    if (source < 0 || source >= vertexCount)
+    {
+        return;                                 // invalid source: everything stays unreachable
+    }
 
     dist[source] = 0;
 
@@ -72,9 +73,9 @@ RouteResult findShortestRoute(const Graph& graph, int source, int destination)
         {
             continue;                           // outdated entry: a shorter route was already found
         }
-        if (u == destination)
+        if (u == stopAt)
         {
-            break;                              // destination's distance is now final
+            break;                              // target's distance is now final
         }
 
         // Step 3: relaxation - try to improve each neighbour through u
@@ -92,6 +93,25 @@ RouteResult findShortestRoute(const Graph& graph, int source, int destination)
             }
         }
     }
+}
+
+// Shortest route from `source` to `destination`, including the path.
+template <typename Graph>
+RouteResult findShortestRoute(const Graph& graph, int source, int destination)
+{
+    RouteResult result;
+    int vertexCount = graph.getVertexCount();
+
+    // Invalid locations: no route
+    if (source < 0 || source >= vertexCount ||
+        destination < 0 || destination >= vertexCount)
+    {
+        return result;
+    }
+
+    DynamicArray<int> dist;
+    DynamicArray<int> parent;
+    runDijkstra(graph, source, destination, dist, parent);
 
     // Step 4: no route found
     if (dist[destination] == UNREACHABLE_DISTANCE)
@@ -109,6 +129,17 @@ RouteResult findShortestRoute(const Graph& graph, int source, int destination)
     result.reachable = true;
     result.distance = dist[destination];
     return result;
+}
+
+// Shortest distance from `source` to EVERY vertex (UNREACHABLE_DISTANCE if none).
+// Used to compare many workers against one complaint with a single run.
+template <typename Graph>
+DynamicArray<int> computeDistancesFrom(const Graph& graph, int source)
+{
+    DynamicArray<int> dist;
+    DynamicArray<int> parent;
+    runDijkstra(graph, source, -1, dist, parent);
+    return dist;
 }
 
 #endif

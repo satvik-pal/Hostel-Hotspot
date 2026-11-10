@@ -67,6 +67,19 @@ bool MaintenanceManager::isBetterCandidate(const MaintenanceWorker& candidate,
     }
     return candidate.getWorkerId() < currentBest.getWorkerId();   // tie-break
 }
+bool MaintenanceManager::isBetterCandidate(const MaintenanceWorker& candidate, int candidateDistance,
+                                           const MaintenanceWorker& currentBest, int bestDistance)
+{
+    if (candidate.getWorkload() != currentBest.getWorkload())
+    {
+        return candidate.getWorkload() < currentBest.getWorkload();     // 1. lower workload
+    }
+    if (candidateDistance != bestDistance)
+    {
+        return candidateDistance < bestDistance;                         // 2. nearer to the complaint
+    }
+    return candidate.getWorkerId() < currentBest.getWorkerId();         // 3. lower ID
+}
 
 std::optional<std::string> MaintenanceManager::allocateComplaint(const std::string& complaintId,
                                                                  const std::string& requiredSkill)

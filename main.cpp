@@ -437,11 +437,18 @@ class TestGraph
 {
     private:
         DynamicArray<DynamicArray<TestEdge>> adjacency;
+        DynamicArray<string> names;
 
     public:
         TestGraph(int vertexCount)
-            : adjacency(vertexCount, DynamicArray<TestEdge>())
+            : adjacency(vertexCount, DynamicArray<TestEdge>()),
+              names(vertexCount, "")
         {
+        }
+
+        void setName(int vertex, const string& name)
+        {
+            names[vertex] = name;
         }
 
         void addEdge(int u, int v, int weight)          // two-way, like the hostel graph
@@ -450,16 +457,31 @@ class TestGraph
             adjacency[v].push({u, weight});
         }
 
-        int getVertexCount() const               { return adjacency.size(); }
-        int getEdgeCount(int vertex) const       { return adjacency[vertex].size(); }
+        int getVertexCount() const                { return adjacency.size(); }
+        int getEdgeCount(int vertex) const        { return adjacency[vertex].size(); }
         TestEdge getEdge(int vertex, int i) const { return adjacency[vertex][i]; }
+
+        int findVertex(const string& name) const        // -1 if the location is unknown
+        {
+            for (int i = 0; i < names.size(); i++)
+            {
+                if (names[i] == name)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
 };
 
 // Same 9 locations and distances as the Infrastructure module's main.cpp
 TestGraph buildHostelLayout()
 {
-    TestGraph g(9);   // 0 Main Gate, 1 Reception, 2 Room 101, 3 Room 102, 4 Room 103,
-                      // 5 Mess, 6 Common Room, 7 Washroom, 8 Stairs
+    TestGraph g(9);
+    g.setName(0, "Main Gate");   g.setName(1, "Reception");   g.setName(2, "Room 101");
+    g.setName(3, "Room 102");    g.setName(4, "Room 103");    g.setName(5, "Mess");
+    g.setName(6, "Common Room"); g.setName(7, "Washroom");    g.setName(8, "Stairs");
+
     g.addEdge(0, 1, 10); g.addEdge(1, 2, 15); g.addEdge(2, 3, 8);
     g.addEdge(3, 4, 8);  g.addEdge(1, 5, 20); g.addEdge(5, 6, 10);
     g.addEdge(2, 7, 5);  g.addEdge(3, 7, 5);  g.addEdge(4, 8, 12);
@@ -609,6 +631,83 @@ void testDijkstra()
     check(allShortest, "all 81 distances match Floyd-Warshall (they really are the shortest)");
 }
 
+void testAllocateWithRoute()
+{
+    section("13. Distance-aware allocation with route");
+
+    TestGraph hostel = buildHostelLayout();
+
+    // computeDistancesFrom: one run gives every distance
+    DynamicArray<int> fromReception = computeDistancesFrom(hostel, hostel.findVertex("Reception"));
+    check(fromReception[hostel.findVertex("Room 103")] == 31 &&
+          fromReception[hostel.findVertex("Main Gate")] == 10 &&
+          fromReception[hostel.findVertex("Stairs")] == 43,       "computeDistancesFrom gives every distance in one run");
+
+    bool matchesSingleRoutes = true;
+    for (int v = 0; v < hostel.getVertexCount(); v++)
+    {
+        if (fromReception[v] != findShortestRoute(hostel, 1, v).distance) matchesSingleRoutes = false;
+    }
+    check(matchesSingleRoutes,                                    "all-distances result matches single-route results");
+
+    check(hostel.findVertex("Mess") == 5 && hostel.findVertex("Library") == -1, "findVertex: known name and unknown name");
+
+    MaintenanceManager m;
+    string farElectrician  = m.addWorker("Amit",   "Electrical", "Main Gate");   // W001, 41 m from Room 103
+    string nearElectrician = m.addWorker("Ravi",   "Electrical", "Room 102");    // W002,  8 m from Room 103
+    string plumber         = m.addWorker("Satish", "Plumbing",   "Mess");        // W003
+
+    // 1. Equal workload -> nearer worker wins, even though it has the higher ID
+    optional<AllocationResult> a1 = m.allocateWithRoute("C001", "Electrical", "Room 103", hostel);
+    int route1[] = {3, 4};
+    check(a1.has_value() && a1->workerId == nearElectrician,    "equal workload: nearer worker wins over lower ID");
+    check(a1.has_value() && a1->route.reachable && a1->route.distance == 8 &&
+          pathIs(a1->route.path, route1, 2),                    "route Room 102 -> Room 103 is 8 m");
+
+    // 2. Workload comes first -> farther worker with less work wins
+    optional<AllocationResult> a2 = m.allocateWithRoute("C002", "Electrical", "Room 103", hostel);
+    int route2[] = {0, 1, 2, 3, 4};
+    check(a2.has_value() && a2->workerId == farElectrician,     "lower workload wins over distance");
+    check(a2.has_value() && a2->route.distance == 41 &&
+          pathIs(a2->route.path, route2, 5),                    "route Main Gate -> Room 103 is 41 m");
+
+    // 3. Both now have workload 1 -> distance decides again
+    optional<AllocationResult> a3 = m.allocateWithRoute("C003", "Electrical", "Room 103", hostel);
+    check(a3.has_value() && a3->workerId == nearElectrician,    "workload tie again: nearer worker wins");
+
+    // 4. Skill matching still applies
+    optional<AllocationResult> a4 = m.allocateWithRoute("C004", "Plumbing", "Washroom", hostel);
+    check(a4.has_value() && a4->workerId == plumber &&
+          a4->route.distance == 40,                             "plumber chosen; Mess -> Washroom is 40 m");
+
+    // 5. Same rules as before
+    check(!m.allocateWithRoute("C001", "Electrical", "Room 103", hostel), "same complaint can't be allocated twice");
+    check(!m.allocateWithRoute("C005", "Carpentry", "Room 101", hostel),  "no worker with the skill -> no allocation");
+
+    m.findWorker(plumber)->setOnDuty(false);
+    check(!m.allocateWithRoute("C006", "Plumbing", "Mess", hostel),      "off-duty worker is skipped");
+
+    optional<string> who = m.getAssignedWorker("C001");
+    check(who.has_value() && *who == nearElectrician,           "assignment is recorded");
+    check(m.completeComplaint("C001") &&
+          m.findWorker(nearElectrician)->getWorkload() == 1,    "completing works for route-based allocations");
+
+    // 6. Unknown complaint location: worker is still assigned, but no route
+    MaintenanceManager m2;
+    string w1 = m2.addWorker("Amit", "Electrical", "Reception");
+    optional<AllocationResult> a5 = m2.allocateWithRoute("C010", "Electrical", "Library", hostel);
+    check(a5.has_value() && a5->workerId == w1 && !a5->route.reachable, "unknown complaint location: assigned, no route");
+
+    // 7. Worker at an unknown location ranks after workers with a known distance
+    MaintenanceManager m3;
+    string unknownSpot = m3.addWorker("Amit", "Electrical", "Rooftop");     // W001, location not in graph
+    string reception   = m3.addWorker("Ravi", "Electrical", "Reception");   // W002
+    optional<AllocationResult> a6 = m3.allocateWithRoute("C020", "Electrical", "Room 101", hostel);
+    check(a6.has_value() && a6->workerId == reception &&
+          a6->route.distance == 15,                             "known location beats unknown location");
+    (void)unknownSpot;
+}
+
 // ---------- Run everything ----------
 
 int main()
@@ -627,6 +726,7 @@ int main()
     testMinHeap();
     testDynamicArray();
     testDijkstra();
+    testAllocateWithRoute();
 
     cout << endl << "Result: " << passed << " passed, " << failed << " failed" << endl;
 
