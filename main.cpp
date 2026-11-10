@@ -4,6 +4,7 @@
 #include "MaintenanceManager.h"
 #include "HashMap.h"
 #include "MinHeap.h"
+#include "DynamicArray.h"
 
 using namespace std;
 
@@ -331,6 +332,99 @@ void testMinHeap()
     Task t{0, 0};
     check(tasks.pop(t) && t.priority == 1 && t.order == 2, "works with a custom struct using operator<");
 }
+DynamicArray<int> buildCountdown(int n)
+{
+    DynamicArray<int> result;
+    for (int i = n; i >= 1; i--)
+    {
+        result.push(i);
+    }
+    return result;                           // returned by value
+}
+
+void testDynamicArray()
+{
+    section("11. DynamicArray (own implementation)");
+
+    DynamicArray<int> empty;
+    check(empty.isEmpty() && empty.size() == 0, "default array is empty");
+
+    DynamicArray<int> filled(5, -1);
+    bool allMinusOne = true;
+    for (int i = 0; i < filled.size(); i++)
+    {
+        if (filled[i] != -1) allMinusOne = false;
+    }
+    check(filled.size() == 5 && allMinusOne,  "size + fill constructor sets every element");
+
+    filled[2] = 42;
+    check(filled[2] == 42 && filled[1] == -1, "operator[] reads and writes one element");
+
+    DynamicArray<int> zero(0, 7);
+    check(zero.isEmpty(),                     "size 0 gives an empty array");
+    zero.push(1);
+    check(zero.size() == 1 && zero[0] == 1,   "push works after size-0 construction");
+
+    DynamicArray<int> numbers;
+    const int N = 1000;
+    for (int i = 0; i < N; i++)
+    {
+        numbers.push(i);
+    }
+    bool allKept = numbers.size() == N;
+    for (int i = 0; i < N; i++)
+    {
+        if (numbers[i] != i) allKept = false;
+    }
+    check(allKept,                            "1000 pushes kept in order (with growth)");
+
+    DynamicArray<int> odd;
+    odd.push(1); odd.push(2); odd.push(3);
+    odd.reverse();
+    check(odd[0] == 3 && odd[1] == 2 && odd[2] == 1, "reverse with odd length");
+
+    DynamicArray<int> even;
+    even.push(1); even.push(2); even.push(3); even.push(4);
+    even.reverse();
+    check(even[0] == 4 && even[1] == 3 && even[2] == 2 && even[3] == 1, "reverse with even length");
+
+    DynamicArray<int> one;
+    one.push(9);
+    one.reverse();
+    empty.reverse();
+    check(one[0] == 9 && empty.isEmpty(),     "reverse with 0 or 1 elements is safe");
+
+    DynamicArray<int> original;
+    original.push(10); original.push(20);
+    DynamicArray<int> copy(original);
+    copy[0] = 99;
+    copy.push(30);
+    check(original[0] == 10 && original.size() == 2, "copy constructor makes an independent copy");
+    check(copy[0] == 99 && copy.size() == 3,          "the copy itself has the changes");
+
+    DynamicArray<int> assigned;
+    assigned.push(5);
+    assigned = original;
+    assigned[1] = 77;
+    check(assigned.size() == 2 && assigned[0] == 10 && assigned[1] == 77, "assignment copies the contents");
+    check(original[1] == 20,                  "assignment makes an independent copy");
+
+    DynamicArray<int>& sameArray = assigned;
+    assigned = sameArray;                    // a = a, written via a reference to avoid a compiler warning
+    check(assigned.size() == 2 && assigned[0] == 10, "self-assignment is safe");
+
+    DynamicArray<int> countdown = buildCountdown(3);
+    check(countdown.size() == 3 && countdown[0] == 3 && countdown[2] == 1, "array can be returned from a function");
+
+    DynamicArray<string> names;
+    names.push("Reception");
+    names.push("Room 101");
+    check(names.size() == 2 && names[1] == "Room 101", "works with strings");
+
+    numbers.clear();
+    check(numbers.isEmpty(),                  "clear removes all elements");
+}
+
 // ---------- Run everything ----------
 
 int main()
@@ -347,6 +441,7 @@ int main()
     testCompletion();
     testHashMap();
     testMinHeap();
+    testDynamicArray();
 
     cout << endl << "Result: " << passed << " passed, " << failed << " failed" << endl;
 
