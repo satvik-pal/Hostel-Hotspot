@@ -5,6 +5,7 @@
 #include "HashMap.h"
 #include "MinHeap.h"
 #include "DynamicArray.h"
+#include "Dijkstra.h"
 
 using namespace std;
 
@@ -424,6 +425,189 @@ void testDynamicArray()
     numbers.clear();
     check(numbers.isEmpty(),                  "clear removes all elements");
 }
+// ---------- Test-only graph (stand-in until the Infrastructure module exposes its edges) ----------
+
+struct TestEdge
+{
+    int destination;
+    int weight;
+};
+
+class TestGraph
+{
+    private:
+        DynamicArray<DynamicArray<TestEdge>> adjacency;
+
+    public:
+        TestGraph(int vertexCount)
+            : adjacency(vertexCount, DynamicArray<TestEdge>())
+        {
+        }
+
+        void addEdge(int u, int v, int weight)          // two-way, like the hostel graph
+        {
+            adjacency[u].push({v, weight});
+            adjacency[v].push({u, weight});
+        }
+
+        int getVertexCount() const               { return adjacency.size(); }
+        int getEdgeCount(int vertex) const       { return adjacency[vertex].size(); }
+        TestEdge getEdge(int vertex, int i) const { return adjacency[vertex][i]; }
+};
+
+// Same 9 locations and distances as the Infrastructure module's main.cpp
+TestGraph buildHostelLayout()
+{
+    TestGraph g(9);   // 0 Main Gate, 1 Reception, 2 Room 101, 3 Room 102, 4 Room 103,
+                      // 5 Mess, 6 Common Room, 7 Washroom, 8 Stairs
+    g.addEdge(0, 1, 10); g.addEdge(1, 2, 15); g.addEdge(2, 3, 8);
+    g.addEdge(3, 4, 8);  g.addEdge(1, 5, 20); g.addEdge(5, 6, 10);
+    g.addEdge(2, 7, 5);  g.addEdge(3, 7, 5);  g.addEdge(4, 8, 12);
+    g.addEdge(6, 8, 15);
+    return g;
+}
+
+bool pathIs(const DynamicArray<int>& path, const int expected[], int length)
+{
+    if (path.size() != length) return false;
+    for (int i = 0; i < length; i++)
+    {
+        if (path[i] != expected[i]) return false;
+    }
+    return true;
+}
+
+void testDijkstra()
+{
+    section("12. Dijkstra shortest route");
+
+    // Direct route
+    TestGraph direct(2);
+    direct.addEdge(0, 1, 7);
+    RouteResult r1 = findShortestRoute(direct, 0, 1);
+    int p1[] = {0, 1};
+    check(r1.reachable && r1.distance == 7,  "direct route: distance 7");
+    check(pathIs(r1.path, p1, 2),            "direct route: path 0 -> 1");
+
+    // Shortest in metres is NOT the route with fewest edges
+    TestGraph detour(3);
+    detour.addEdge(0, 1, 10);                // direct but long
+    detour.addEdge(0, 2, 2);
+    detour.addEdge(2, 1, 3);                 // two edges, total 5
+    RouteResult r2 = findShortestRoute(detour, 0, 1);
+    int p2[] = {0, 2, 1};
+    check(r2.reachable && r2.distance == 5,  "longer path in edges but shorter in metres is chosen");
+    check(pathIs(r2.path, p2, 3),            "path goes through the detour 0 -> 2 -> 1");
+
+    // Unreachable
+    TestGraph split(3);
+    split.addEdge(0, 1, 4);                  // vertex 2 has no connections
+    RouteResult r3 = findShortestRoute(split, 0, 2);
+    check(!r3.reachable && r3.distance == -1 && r3.path.isEmpty(), "unreachable location is reported");
+
+    // Same source and destination
+    RouteResult r4 = findShortestRoute(direct, 1, 1);
+    int p4[] = {1};
+    check(r4.reachable && r4.distance == 0 && pathIs(r4.path, p4, 1), "same start and end: distance 0");
+
+    // Invalid vertex numbers
+    check(!findShortestRoute(direct, 0, 5).reachable,  "destination out of range -> not reachable");
+    check(!findShortestRoute(direct, -1, 0).reachable, "negative source -> not reachable");
+
+    // Real hostel layout
+    TestGraph hostel = buildHostelLayout();
+
+    RouteResult r5 = findShortestRoute(hostel, 1, 4);           // Reception -> Room 103
+    int p5[] = {1, 2, 3, 4};
+    check(r5.reachable && r5.distance == 31, "Reception -> Room 103 is 31 m");
+    check(pathIs(r5.path, p5, 4),            "via Room 101 and Room 102");
+
+    RouteResult r6 = findShortestRoute(hostel, 0, 8);           // Main Gate -> Stairs
+    int p6[] = {0, 1, 2, 3, 4, 8};
+    check(r6.reachable && r6.distance == 53, "Main Gate -> Stairs is 53 m (not 55 m via Mess)");
+    check(pathIs(r6.path, p6, 6),            "via the rooms, not the Mess");
+
+    RouteResult r7 = findShortestRoute(hostel, 7, 5);           // Washroom -> Mess
+    check(r7.reachable && r7.distance == 40, "Washroom -> Mess is 40 m");
+
+    RouteResult r8 = findShortestRoute(hostel, 4, 1);           // reverse direction
+    check(r8.reachable && r8.distance == 31, "route is the same length in the reverse direction");
+
+    // Every route's edges must add up to its reported distance
+    bool allConsistent = true;
+    for (int s = 0; s < 9; s++)
+    {
+        for (int d = 0; d < 9; d++)
+        {
+            RouteResult r = findShortestRoute(hostel, s, d);
+            if (!r.reachable || r.path[0] != s || r.path[r.path.size() - 1] != d)
+            {
+                allConsistent = false;
+                continue;
+            }
+            int total = 0;
+            for (int k = 0; k + 1 < r.path.size(); k++)
+            {
+                int from = r.path[k];
+                int to = r.path[k + 1];
+                bool edgeFound = false;
+                for (int e = 0; e < hostel.getEdgeCount(from); e++)
+                {
+                    if (hostel.getEdge(from, e).destination == to)
+                    {
+                        total += hostel.getEdge(from, e).weight;
+                        edgeFound = true;
+                        break;
+                    }
+                }
+                if (!edgeFound) allConsistent = false;
+            }
+            if (total != r.distance) allConsistent = false;
+        }
+    }
+    check(allConsistent, "all 81 routes: path is valid and its edges add up to the distance");
+
+    // Cross-check every distance against Floyd-Warshall (a different, brute-force algorithm)
+    const int V = 9;
+    int best[V][V];
+    for (int i = 0; i < V; i++)
+    {
+        for (int j = 0; j < V; j++)
+        {
+            best[i][j] = (i == j) ? 0 : UNREACHABLE_DISTANCE;
+        }
+        for (int e = 0; e < hostel.getEdgeCount(i); e++)
+        {
+            TestEdge edge = hostel.getEdge(i, e);
+            if (edge.weight < best[i][edge.destination])
+            {
+                best[i][edge.destination] = edge.weight;
+            }
+        }
+    }
+    for (int k = 0; k < V; k++)
+    {
+        for (int i = 0; i < V; i++)
+        {
+            for (int j = 0; j < V; j++)
+            {
+                if (best[i][k] + best[k][j] < best[i][j])
+                {
+                    best[i][j] = best[i][k] + best[k][j];
+                }
+            }
+        }
+    }
+    bool allShortest = true;
+    for (int s = 0; s < V; s++)
+    {
+        for (int d = 0; d < V; d++)
+        {
+            if (findShortestRoute(hostel, s, d).distance != best[s][d]) allShortest = false;
+        }
+    }
+    check(allShortest, "all 81 distances match Floyd-Warshall (they really are the shortest)");
+}
 
 // ---------- Run everything ----------
 
@@ -442,6 +626,7 @@ int main()
     testHashMap();
     testMinHeap();
     testDynamicArray();
+    testDijkstra();
 
     cout << endl << "Result: " << passed << " passed, " << failed << " failed" << endl;
 

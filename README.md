@@ -10,7 +10,7 @@ It aims to manage the main parts of hostel operations: students, hostel infrastr
 
 ## This Branch
 
-`Satvik-maintenance` contains the **Maintenance module**: managing maintenance workers and allocating complaints to them. A custom min-heap and dynamic array have been built as the first steps towards routing workers with Dijkstra's algorithm.
+`Satvik-maintenance` contains the **Maintenance module**: managing maintenance workers and allocating complaints to them. Dijkstra's shortest-route algorithm is implemented on top of a custom min-heap and dynamic array, and tested on a stand-in copy of the hostel layout. Connecting it to the Infrastructure module's graph and to allocation is the next stage.
 
 ## Technologies and Concepts
 
@@ -37,6 +37,7 @@ Initial project structure and the foundation of the Maintenance module.
 - Own hash table (`HashMap`) replacing `std::unordered_map`
 - Own binary min-heap (`MinHeap`) in preparation for Dijkstra's algorithm
 - Own resizable array (`DynamicArray`) replacing `std::vector`, with deep copy
+- Dijkstra's shortest-route algorithm (`findShortestRoute`), written against a graph interface
 - Self-checking test suite covering the whole module
 
 ## Maintenance Module
@@ -92,6 +93,7 @@ On-duty status is stored; availability is computed, so it can never get out of s
 | Linear scan in `allocateComplaint()` | Select the best available worker | O(n) over all workers |
 | `MinHeap<T>` | Always returns the smallest item (for Dijkstra) | push/pop O(log n), peek O(1) |
 | `DynamicArray<T>` | Resizable array for Dijkstra's distances, parents and routes | push amortised O(1), access O(1), copy/reverse O(n) |
+| Dijkstra (`findShortestRoute`) | Shortest route between two locations | O((V + E) log V) time, O(V + E) space |
 
 A linear scan was chosen over a heap because a worker's workload changes after every assignment and completion, and a plain binary heap cannot cheaply update existing entries. For a hostel-sized team (tens of workers), O(n) is simple and fast enough.
 
@@ -132,16 +134,46 @@ The project does not use STL containers or algorithms for its data structures, s
 - **Deep copy (Rule of Three):** a copy constructor, copy assignment operator (with a self-assignment check) and destructor, so copies are fully independent and arrays can be returned from functions
 - **Template:** `DynamicArray<T>` works for any type with a default constructor and copy assignment
 
+### Dijkstra's Algorithm
+
+`findShortestRoute(graph, source, destination)` (`include/Dijkstra.h`) finds the shortest route in metres between two hostel locations.
+
+**Graph interface.** The function is a template, so it works with any graph class that provides:
+
+```cpp
+int  getVertexCount() const;
+int  getEdgeCount(int vertex) const;
+Edge getEdge(int vertex, int i) const;   // Edge has .destination and .weight
+```
+
+This avoids a second graph system: the Infrastructure module's `HostelGraph` only needs these three functions to be used directly. Until then, Dijkstra is tested on a test-only graph that reproduces the same 9-location hostel layout.
+
+**Algorithm.**
+1. Set every distance to "unreachable" and the source's distance to 0
+2. Repeatedly take the closest unfinished location from the min-heap
+3. Skip outdated heap entries (lazy deletion), and stop early once the destination is taken
+4. **Relaxation:** for each neighbour, if going through the current location is shorter, update its distance and parent and push it onto the heap
+5. Rebuild the route by following `parent[]` back from the destination, then reversing it
+
+**Result:** a `RouteResult` with `reachable`, `distance` (metres) and `path` (location numbers from source to destination).
+
+**Requirements and edge cases:** edge weights must be non-negative; invalid location numbers and unreachable destinations return `reachable = false`; the same source and destination gives distance 0.
+
+**Example (hostel layout):** Reception → Room 103 = 31 m via Room 101 and Room 102.
+
 ### Known limitations
 
-- Allocation does not yet consider distance to the complaint (planned with Dijkstra)
+- Allocation does not yet consider distance to the complaint (Dijkstra is ready; integration pending)
+- Dijkstra currently runs on a test-only copy of the hostel layout until the Infrastructure module's graph exposes its edges
+- Dijkstra assumes all distances are non-negative
 - A failed allocation does not report *why* it failed (no worker vs. already assigned)
 - Worker IDs are compared as text for tie-breaking, which is correct up to `W999`
 - Skill names are plain strings and must match exactly (e.g. `"Plumbing"`)
 
 ### Planned (not yet implemented)
 
-- Dijkstra's algorithm on the hostel infrastructure graph for worker routing (min-heap and dynamic array done; the algorithm itself pending)
+- Connecting Dijkstra to the Infrastructure module's `HostelGraph` (requires `getVertexCount()`, `getEdgeCount()` and `getEdge()`)
+- Returning the route to the assigned worker after allocation
 - Distance-aware worker selection
 - Integration with the Complaint and Hostel Infrastructure modules
 - SQLite persistence (with inactive status instead of deleting workers)
@@ -157,7 +189,7 @@ g++ -std=c++17 -Iinclude main.cpp src/MaintenanceWorker.cpp src/MaintenanceManag
 ```
 
 - `-std=c++17` is required (`std::optional` is a C++17 feature)
-- `HashMap.h`, `MinHeap.h` and `DynamicArray.h` are header-only, so they do not need to be listed
+- `HashMap.h`, `MinHeap.h`, `DynamicArray.h` and `Dijkstra.h` are header-only, so they do not need to be listed
 - `-Iinclude` tells the compiler where to find the header files
 - Every `.cpp` file must be listed so the linker can find all function definitions
 
@@ -166,7 +198,7 @@ g++ -std=c++17 -Iinclude main.cpp src/MaintenanceWorker.cpp src/MaintenanceManag
 `main.cpp` currently runs a self-checking test suite for the whole module, from creating a worker to allocating and completing complaints. Each check prints `[PASS]` or `[FAIL]`, followed by a summary:
 
 ```text
-Result: 101 passed, 0 failed
+Result: 117 passed, 0 failed
 ```
 
 The program exits with code `0` if all tests pass and `1` otherwise.
@@ -184,6 +216,7 @@ Covered:
 9. `HashMap`: insert, duplicates, find, modify through pointer, 1000 keys with rehashing, erase, `forEach`
 10. `MinHeap`: empty heap, ascending pops, peek, duplicates, mixed push/pop, 1000 items with growth, custom struct
 11. `DynamicArray`: fill constructor, element access, 1000 pushes with growth, reverse, independent copies, self-assignment, returning from a function, strings, clear
+12. Dijkstra: direct route, shorter route with more edges, unreachable location, same start and end, invalid input, hostel layout routes, all 81 routes checked for validity and cross-checked against Floyd-Warshall
 
 The tests will move to `tests/` once the CMake build is set up.
 
@@ -193,6 +226,7 @@ The tests will move to `tests/` once the CMake build is set up.
 Hostel-Hotspot/
 │
 ├── include/
+│   ├── Dijkstra.h
 │   ├── DynamicArray.h
 │   ├── HashMap.h
 │   ├── MinHeap.h
