@@ -18,9 +18,10 @@ It aims to manage the main parts of hostel operations: students, hostel infrastr
 - Object-Oriented Programming (OOP)
 - Data Structures and Algorithms (DSA)
 - Custom data structures (no STL containers or algorithms)
+- CMake (build system) and CTest (test runner)
 - Git and GitHub
 
-Planned for later phases: CMake, SQLite (persistence), Qt (desktop UI).
+Planned for later phases: SQLite (persistence), Qt (desktop UI).
 
 ## Current Progress
 
@@ -40,6 +41,7 @@ Initial project structure and the foundation of the Maintenance module.
 - Dijkstra's shortest-route algorithm (`findShortestRoute`), written against a graph interface
 - Distance-aware allocation (`allocateWithRoute`): workload first, then distance to the complaint, then worker ID, returning the worker and their route
 - Self-checking test suite covering the whole module
+- CMake build with a module library, a demo program and a CTest test target; tests moved to `tests/`
 
 ## Maintenance Module
 
@@ -195,27 +197,38 @@ This avoids a second graph system: the Infrastructure module's `HostelGraph` onl
 
 ## Build and Run
 
-From the project root:
+The project uses **CMake** (3.16 or newer) and a C++17 compiler. From the project root:
 
 ```bash
-g++ -std=c++17 -Iinclude main.cpp src/MaintenanceWorker.cpp src/MaintenanceManager.cpp -o hostel
-./hostel
+cmake -S . -B build                            # configure (generated files go into build/)
+cmake --build build                            # compile everything
+./build/hostel                                 # run the demo
+ctest --test-dir build --output-on-failure     # run the automated tests
 ```
 
-- `-std=c++17` is required (`std::optional` is a C++17 feature)
-- `HashMap.h`, `MinHeap.h`, `DynamicArray.h` and `Dijkstra.h` are header-only, so they do not need to be listed
-- `-Iinclude` tells the compiler where to find the header files
-- Every `.cpp` file must be listed so the linker can find all function definitions
+After changing code, only `cmake --build build` needs to be run again.
+
+The build defines three targets:
+
+| Target | Type | Contents |
+|---|---|---|
+| `maintenance` | Static library | `src/MaintenanceWorker.cpp`, `src/MaintenanceManager.cpp` (header-only templates are included through `include/`) |
+| `hostel` | Program | `main.cpp`: a short demo of worker registration, allocation, off-duty handling and completion |
+| `maintenance_tests` | Program (registered with CTest) | `tests/test_maintenance.cpp`: the full automated test suite |
+
+- The library is compiled once and linked into both the demo and the tests
+- `include/` is a public include directory of the library, so anything linked to it finds the headers automatically
+- Warnings are enabled (`-Wall -Wextra`, or `/W4` with MSVC)
 
 ## Tests
 
-`main.cpp` currently runs a self-checking test suite for the whole module, from creating a worker to allocating and completing complaints. Each check prints `[PASS]` or `[FAIL]`, followed by a summary:
+`tests/test_maintenance.cpp` is a self-checking test suite for the whole module, from creating a worker to distance-aware allocation. Each check prints `[PASS]` or `[FAIL]`, followed by a summary:
 
 ```text
 Result: 133 passed, 0 failed
 ```
 
-The program exits with code `0` if all tests pass and `1` otherwise.
+The program exits with code `0` if all tests pass and `1` otherwise, which is how CTest decides pass or fail. To see every individual check, run `./build/maintenance_tests` directly.
 
 Covered:
 
@@ -232,8 +245,6 @@ Covered:
 11. `DynamicArray`: fill constructor, element access, 1000 pushes with growth, reverse, independent copies, self-assignment, returning from a function, strings, clear
 12. Dijkstra: direct route, shorter route with more edges, unreachable location, same start and end, invalid input, hostel layout routes, all 81 routes checked for validity and cross-checked against Floyd-Warshall
 13. Distance-aware allocation: all-distances run, location lookup, nearer worker wins on equal workload, workload beats distance, routes returned, skill/duty/duplicate rules, unknown complaint location, unknown worker location
-
-The tests will move to `tests/` once the CMake build is set up.
 
 ## Project Structure
 
@@ -253,8 +264,12 @@ Hostel-Hotspot/
 │   └── MaintenanceManager.cpp
 │
 ├── tests/
-├── data/
-├── docs/
+│   └── test_maintenance.cpp
+│
+├── CMakeLists.txt
 ├── main.cpp
-└── README.md
+├── README.md
+└── .gitignore
 ```
+
+`build/` is created by CMake and is ignored by Git.
