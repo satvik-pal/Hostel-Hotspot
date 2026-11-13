@@ -253,6 +253,10 @@ void testHashMap()
     int visited = 0;
     map.forEach([&](const string& key, int& value) { (void)key; (void)value; visited++; });
     check(visited == map.size(),           "forEach visits every entry exactly once");
+    const HashMap<int>& readOnly = map;
+    int seen = 0;
+    readOnly.forEach([&](const string& key, const int& value) { (void)key; (void)value; seen++; });
+    check(seen == map.size(),              "const forEach visits every entry (read-only)");
 }
 struct Task
 {

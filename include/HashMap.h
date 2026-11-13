@@ -205,6 +205,19 @@ class HashMap
                 }
             }
         }
+
+        // Read-only version: callable on a const map; values are passed as const.
+        template <typename Action>
+        void forEach(Action action) const
+        {
+            for (int i = 0; i < capacity; i++)
+            {
+                for (const Node* current = buckets[i]; current != nullptr; current = current->next)
+                {
+                    action(current->key, current->value);
+                }
+            }
+        }
 };
 
 #endif
