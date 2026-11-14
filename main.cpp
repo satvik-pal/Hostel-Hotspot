@@ -1,165 +1,94 @@
+// HostelPulse - Complaint Management console menu.
+// All input and output happens here; the library classes only return results.
+
 #include <iostream>
+#include <optional>
 #include <string>
-#include <unordered_map>
-#include <iomanip>
-#include <algorithm>
+
+#include "ComplaintManager.h"
+#include "PriorityRules.h"
 
 using namespace std;
 
-enum class Priority {
-    Low = 1,
-    Medium = 2,
-    High = 3
-};
-
-string priorityToString(Priority priority) {
-    switch (priority) {
-        case Priority::High: return "High";
-        case Priority::Medium: return "Medium";
-        default: return "Low";
-    }
-}
-
-string toLowerCopy(string text) {
-    transform(text.begin(), text.end(), text.begin(),
-              [](unsigned char c) { return static_cast<char>(tolower(c)); });
-    return text;
-}
-
-// Basic prototype priority rules. These can be improved after team discussion.
-Priority assignPriority(const string& category, const string& description) {
-    string text = toLowerCopy(category + " " + description);
-
-    if (text.find("fire") != string::npos ||
-        text.find("sparking") != string::npos ||
-        text.find("exposed wire") != string::npos ||
-        text.find("gas leak") != string::npos ||
-        text.find("flood") != string::npos) {
-        return Priority::High;
-    }
-
-    if (text.find("electrical") != string::npos ||
-        text.find("plumbing") != string::npos ||
-        text.find("water") != string::npos ||
-        text.find("internet") != string::npos) {
-        return Priority::Medium;
-    }
-
-    return Priority::Low;
-}
-
-class Complaint {
-private:
-    string complaintId;
-    string studentId;
-    string category;
-    string description;
-    string location;
-    Priority priority;
-    string status;
-
-public:
-    Complaint() : priority(Priority::Low), status("Pending") {}
-
-    Complaint(string id, string student, string complaintCategory,
-              string complaintDescription, string complaintLocation,
-              Priority complaintPriority)
-        : complaintId(id), studentId(student), category(complaintCategory),
-          description(complaintDescription), location(complaintLocation),
-          priority(complaintPriority), status("Pending") {}
-
-    string getId() const { return complaintId; }
-
-    void display() const {
-        cout << "\n------------------------------------\n";
-        cout << "Complaint ID : " << complaintId << '\n';
-        cout << "Student ID   : " << studentId << '\n';
-        cout << "Category     : " << category << '\n';
-        cout << "Description  : " << description << '\n';
-        cout << "Location     : " << location << '\n';
-        cout << "Priority     : " << priorityToString(priority) << '\n';
-        cout << "Status       : " << status << '\n';
+namespace
+{
+    void displayComplaint(const Complaint& complaint)
+    {
+        cout << "\n------------------------------------\n"
+             << "Complaint ID : " << complaint.getId() << '\n'
+             << "Student ID   : " << complaint.getStudentId() << '\n'
+             << "Category     : " << complaint.getCategory() << '\n'
+             << "Description  : " << complaint.getDescription() << '\n'
+             << "Location     : " << complaint.getLocation() << '\n'
+             << "Priority     : " << priorityToString(complaint.getPriority()) << '\n'
+             << "Status       : " << statusToString(complaint.getStatus()) << '\n';
+        if (!complaint.getAssignedWorkerId().empty())
+        {
+            cout << "Worker       : " << complaint.getAssignedWorkerId() << '\n';
+        }
         cout << "------------------------------------\n";
     }
-};
 
-class ComplaintManager {
-private:
-    unordered_map<string, Complaint> complaints;
-    int nextId = 1;
-
-    string generateComplaintId() {
-        string number = to_string(nextId++);
-        while (number.length() < 3) {
-            number = "0" + number;
-        }
-        return "C" + number;
+    string readLine(const string& prompt)
+    {
+        string text;
+        cout << prompt;
+        getline(cin, text);
+        return text;
     }
 
-public:
-    void addComplaint() {
-        string studentId, category, description, location;
+    void addComplaint(ComplaintManager& manager)
+    {
+        string studentId = readLine("Enter Student/User ID: ");
 
-        cout << "Enter Student/User ID: ";
-        getline(cin, studentId);
-        cout << "Enter complaint category: ";
-        getline(cin, category);
-        cout << "Enter complaint description: ";
-        getline(cin, description);
-        cout << "Enter location (block/room): ";
-        getline(cin, location);
+        cout << "Categories:";
+        for (int i = 0; i < PriorityRules::CATEGORY_COUNT; i++)
+        {
+            cout << ' ' << PriorityRules::CATEGORIES[i] << (i + 1 < PriorityRules::CATEGORY_COUNT ? "," : "\n");
+        }
+        string category = readLine("Enter category (exactly as listed): ");
+        string description = readLine("Enter complaint description: ");
+        string location = readLine("Enter location (e.g. Sai Hostel 204): ");
 
-        string id = generateComplaintId();
-        Priority priority = assignPriority(category, description);
-
-        Complaint complaint(id, studentId, category, description, location, priority);
-        complaints.emplace(id, complaint);
-
-        cout << "\nComplaint added successfully!\n";
-        cout << "Generated Complaint ID: " << id << '\n';
-        cout << "Assigned Priority: " << priorityToString(priority) << '\n';
-    }
-
-    void findComplaint() const {
-        string id;
-        cout << "Enter Complaint ID to search: ";
-        getline(cin, id);
-
-        auto it = complaints.find(id);
-        if (it != complaints.end()) {
-            it->second.display();
-        } else {
-            cout << "Complaint not found.\n";
+        optional<string> id = manager.addComplaint(studentId, category, description, location);
+        if (id)
+        {
+            cout << "\nComplaint added successfully!\n"
+                 << "Generated Complaint ID: " << *id << '\n'
+                 << "Assigned Priority: "
+                 << priorityToString(manager.findComplaint(*id)->getPriority()) << '\n';
+        }
+        else
+        {
+            cout << "Invalid input: check the fields and category.\n";
         }
     }
+}
 
-    void displayAllComplaints() const {
-        if (complaints.empty()) {
-            cout << "No complaints have been added yet.\n";
-            return;
-        }
-
-        cout << "\n===== ALL COMPLAINTS =====\n";
-        for (const auto& entry : complaints) {
-            entry.second.display();
-        }
-    }
-};
-
-int main() {
+int main()
+{
     ComplaintManager manager;
-    int choice;
+    int choice = -1;
 
-    do {
-        cout << "\n======= HOSTELPULSE =======\n";
-        cout << "Complaint Management - Phase 1\n";
-        cout << "1. Add complaint\n";
-        cout << "2. Search complaint by ID\n";
-        cout << "3. Display all complaints\n";
-        cout << "0. Exit\n";
-        cout << "Enter your choice: ";
+    do
+    {
+        cout << "\n======= HOSTELPULSE =======\n"
+             << "Complaint Management\n"
+             << "1. Add complaint\n"
+             << "2. Search complaint by ID\n"
+             << "3. Display all complaints\n"
+             << "4. Show next pending complaint\n"
+             << "5. Mark complaint assigned\n"
+             << "6. Mark complaint resolved\n"
+             << "0. Exit\n"
+             << "Enter your choice: ";
 
-        if (!(cin >> choice)) {
+        if (!(cin >> choice))
+        {
+            if (cin.eof())
+            {
+                break;
+            }
             cin.clear();
             cin.ignore(10000, '\n');
             cout << "Please enter a valid number.\n";
@@ -167,19 +96,76 @@ int main() {
         }
         cin.ignore(10000, '\n');
 
-        switch (choice) {
+        switch (choice)
+        {
             case 1:
-                manager.addComplaint();
+                addComplaint(manager);
                 break;
+
             case 2:
-                manager.findComplaint();
+            {
+                const Complaint* complaint = manager.findComplaint(readLine("Enter Complaint ID to search: "));
+                if (complaint != nullptr)
+                {
+                    displayComplaint(*complaint);
+                }
+                else
+                {
+                    cout << "Complaint not found.\n";
+                }
                 break;
+            }
+
             case 3:
-                manager.displayAllComplaints();
+                if (manager.getComplaintCount() == 0)
+                {
+                    cout << "No complaints have been added yet.\n";
+                }
+                else
+                {
+                    cout << "\n===== ALL COMPLAINTS =====\n";
+                    manager.forEachComplaint(displayComplaint);
+                }
                 break;
+
+            case 4:
+            {
+                optional<string> next = manager.nextPending();
+                if (next)
+                {
+                    cout << "Next complaint to handle:";
+                    displayComplaint(*manager.findComplaint(*next));
+                }
+                else
+                {
+                    cout << "No pending complaints.\n";
+                }
+                break;
+            }
+
+            case 5:
+            {
+                string id = readLine("Enter Complaint ID: ");
+                string worker = readLine("Enter Worker ID: ");
+                cout << (manager.markAssigned(id, worker)
+                             ? "Complaint marked as Assigned.\n"
+                             : "Not allowed: unknown complaint, empty worker ID, or not Pending.\n");
+                break;
+            }
+
+            case 6:
+            {
+                string id = readLine("Enter Complaint ID: ");
+                cout << (manager.markResolved(id)
+                             ? "Complaint marked as Resolved.\n"
+                             : "Not allowed: unknown complaint or not Assigned.\n");
+                break;
+            }
+
             case 0:
                 cout << "Exiting HostelPulse.\n";
                 break;
+
             default:
                 cout << "Invalid choice. Try again.\n";
         }

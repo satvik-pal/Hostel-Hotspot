@@ -1,52 +1,91 @@
-# HostelPulse — Complaint Management (50% Checkpoint)
+# HostelPulse — Complaint Management Module
 
-This version intentionally implements the first half of the Complaint Management module for a progress checkpoint.
+**Module owner:** Saksham
+**Branch:** `Saksham-Complaint`
+**Language/build:** C++17, CMake 3.16+
 
-## Implemented in this checkpoint
+This module registers student complaints, assigns each one a priority, schedules them in a priority queue, and tracks their status (Pending → Assigned → Resolved). It is built as a CMake library so the console menu, the automated tests and the future UI use the same logic.
 
-- `Complaint` class with private data members
-- Complaint information: ID, student ID, category, description, location, priority and status
-- Automatic complaint IDs (`C001`, `C002`, ...)
-- Basic keyword-based High / Medium / Low priority assignment
-- Add a complaint
-- Search a complaint by ID
-- Display all complaints
-- `unordered_map` for complaint storage and average O(1) ID lookup
+## Project structure
 
-## Not implemented yet
+```text
+HostelPulse_Complaint_Module/
+├── include/
+│   ├── Complaint.h          Complaint data, getters, status transitions
+│   ├── ComplaintManager.h   storage (HashMap), scheduling (MinHeap), status
+│   ├── PriorityRules.h      categories and keyword priority rules
+│   ├── HashMap.h            team shared hash table (unchanged copy)
+│   └── MinHeap.h            team shared binary min-heap (unchanged copy)
+├── src/
+│   ├── Complaint.cpp
+│   ├── ComplaintManager.cpp
+│   └── PriorityRules.cpp
+├── tests/
+│   └── test_complaints.cpp
+├── CMakeLists.txt
+├── main.cpp                 console menu (all input/output)
+├── README.md
+└── .gitignore
+```
 
-These are planned next steps, not completed features:
+## Features
 
-- `priority_queue` scheduling
-- Updating complaint status and closing/removing complaints
-- Saving/loading complaints from a file or database
-- Maintenance worker allocation and actual module integration
-- Website/frontend
+- Register a complaint from parameters: `addComplaint(studentId, category, description, location)` returns the new ID (`C001`, `C002`, ...) or nothing if the input is invalid.
+- Fixed categories, which are also the maintenance worker skill names: **Electrical, Plumbing, Carpentry, Cleaning, AC Repair, Internet** (exact spelling).
+- Keyword-based priority (High / Medium / Low). High: fire, sparking, exposed wire, gas leak, flood, short circuit. Medium: electrical, plumbing, water, internet.
+- Priority queue: `nextPending()` returns the most urgent pending complaint; equal priorities are handled first come, first served.
+- Status tracking with enforced transitions: Pending → Assigned (with worker ID) → Resolved.
+- Library classes never read input or print; the console menu in `main.cpp` does all I/O.
 
-## Compile and run
+## Data structures
+
+| Structure | Use | Complexity |
+|---|---|---|
+| `HashMap<Complaint>` | complaint ID → complaint | average O(1) insert/find |
+| `MinHeap<QueuedComplaint>` | scheduling order | push/pop O(log n), peek O(1) |
+
+`QueuedComplaint::operator<` defines "smaller" as "handle first": higher priority first, then lower arrival number.
+
+**Lazy deletion.** A binary heap cannot remove an item from the middle cheaply. When a complaint is assigned, its queue entry stays in the heap; `nextPending()` discards entries whose complaint is no longer Pending when they reach the top. `nextPending()` only *peeks*, so if allocation fails (for example no plumber on duty) the complaint stays at the front.
+
+**Known limitation:** if the front complaint cannot be allocated, the complaints behind it wait until it is.
+
+## Integration with the Maintenance module
+
+```cpp
+std::optional<std::string> next = complaints.nextPending();
+const Complaint* c = complaints.findComplaint(*next);
+auto result = maintenance.allocateWithRoute(c->getId(), c->getCategory(), c->getLocation(), campusGraph);
+if (result) complaints.markAssigned(c->getId(), result->workerId);
+// when the work is done:
+maintenance.completeComplaint(complaintId);
+complaints.markResolved(complaintId);
+```
+
+The category is passed directly as the required worker skill, and the location must be a campus location name from the Infrastructure module (e.g. `Sai Hostel 204`). Location validation happens in the application layer, which has access to the campus graph.
+
+## Build and run
 
 ```bash
-g++ -std=c++14 -Wall -Wextra -pedantic main.cpp -o hostelpulse
+cmake -S . -B build
+cmake --build build
+./build/complaint_menu
 ```
 
-On Windows PowerShell:
+## Tests
 
-```powershell
-.\hostelpulse.exe
+```bash
+ctest --test-dir build --output-on-failure
+./build/complaint_tests          # shows every check
 ```
 
-## Suggested demo for the checkpoint
+34 checks: priority rules and categories, registration and validation, ID generation, field storage, scheduling order (priority, then arrival), peek-without-removal, status transitions and invalid transitions, read-only iteration, and 1000 complaints.
 
-1. Choose `1` and add a complaint:
-   - Student ID: `S101`
-   - Category: `Electrical`
-   - Description: `Sparking from exposed wire`
-   - Location: `Block A Room 12`
-2. Show the generated complaint ID and High priority.
-3. Choose `2` and search for the generated ID.
-4. Choose `3` to show all complaints.
-5. Explain that priority-queue scheduling and persistence are the next development steps.
+## Shared team files
 
-## Important
+`include/HashMap.h` and `include/MinHeap.h` are copied unchanged from the `Satvik-maintenance` branch. Do not edit them here; update them once in the shared version so every module stays compatible.
 
-This is a learning prototype. The priority rules are illustrative and should be reviewed with the project team. Complaints are currently stored in memory, so they disappear when the program exits.
+## Credits
+
+Original design (Complaint class, automatic IDs, keyword priority rules, console menu): Saksham.
+Restructuring into a library with status tracking and the priority queue, following the team change specification: carried out by Satvik with the team's agreement while Saksham was unavailable.
