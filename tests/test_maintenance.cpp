@@ -711,6 +711,39 @@ void testAllocateWithRoute()
           a6->route.distance == 15,                             "known location beats unknown location");
     (void)unknownSpot;
 }
+ void testRestore()
+{
+    section("14. Restoring saved workers and assignments");
+
+    MaintenanceManager m;
+    MaintenanceWorker saved("W012", "Ravi", "Electrical", "Sai Hostel 204", false, 2);
+
+    check(m.restoreWorker(saved),                       "saved worker is restored");
+    check(!m.restoreWorker(saved),                      "restoring the same ID twice fails");
+
+    const MaintenanceWorker* w = m.findWorker("W012");
+    check(w != nullptr && !w->isOnDuty() && w->getWorkload() == 2 &&
+          w->getLocation() == "Sai Hostel 204",          "duty status, workload and location are kept");
+
+    check(m.addWorker("Amit", "Plumbing", "Mess") == "W013", "new IDs continue after the restored ID");
+
+    m.reserveWorkerId("W020");                          // e.g. a removed worker saved in the database
+    check(m.addWorker("Satish", "Plumbing", "Mess") == "W021", "reserved IDs of removed workers are not reused");
+
+    check(m.restoreAssignment("C004", "W012"),           "saved assignment is restored");
+    check(!m.restoreAssignment("C004", "W012"),          "the same complaint cannot be restored twice");
+    check(!m.restoreAssignment("C005", "W999"),          "assignment to an unknown worker is rejected");
+    check(m.findWorker("W012")->getWorkload() == 2,      "restoring an assignment does not change workload");
+    check(m.completeComplaint("C004") &&
+          m.findWorker("W012")->getWorkload() == 1,      "restored assignment can be completed");
+
+    int visited = 0;
+    const MaintenanceManager& readOnly = m;
+    readOnly.forEachWorker([&](const MaintenanceWorker&) { visited++; });
+    check(visited == 3 && readOnly.findWorker("W013") != nullptr,
+          "forEachWorker and const findWorker work on a read-only manager");
+}
+
 
 // ---------- Run everything ----------
 
@@ -731,6 +764,7 @@ int main()
     testDynamicArray();
     testDijkstra();
     testAllocateWithRoute();
+    testRestore();
 
     cout << endl << "Result: " << passed << " passed, " << failed << " failed" << endl;
 

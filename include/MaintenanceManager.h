@@ -36,6 +36,7 @@ class MaintenanceManager
                               const std::string& skill,
                               const std::string& location);
         MaintenanceWorker* findWorker(const std::string& workerId);
+        const MaintenanceWorker* findWorker(const std::string& workerId) const;
         bool removeWorker(const std::string& workerId);
         int getWorkerCount() const;
 
@@ -52,6 +53,28 @@ class MaintenanceManager
                                                           const std::string& requiredSkill,
                                                           const std::string& complaintLocation,
                                                           const Graph& graph);
+
+        // ---------- Persistence support (used when loading saved data) ----------
+
+        // Re-inserts a saved worker with its ID, duty status and workload unchanged.
+        // False if the ID is empty or already present.
+        bool restoreWorker(const MaintenanceWorker& worker);
+
+        // Re-inserts a saved complaint -> worker assignment. Does not change workload
+        // (the saved workload already counts it). False if the complaint is already
+        // assigned or the worker does not exist.
+        bool restoreAssignment(const std::string& complaintId, const std::string& workerId);
+
+        // Makes sure future generated IDs come after `workerId` (e.g. "W012" -> next is W013),
+        // including IDs of removed workers, so IDs are never reused.
+        void reserveWorkerId(const std::string& workerId);
+
+        // Calls action(const MaintenanceWorker&) for every worker. Read-only.
+        template <typename Action>
+        void forEachWorker(Action action) const
+        {
+            workers.forEach([&](const std::string&, const MaintenanceWorker& worker) { action(worker); });
+        }
 };
 
 // Template member functions must be defined in the header.

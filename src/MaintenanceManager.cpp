@@ -35,6 +35,11 @@ MaintenanceWorker* MaintenanceManager::findWorker(const std::string& workerId)
     return workers.find(workerId);
 }
 
+const MaintenanceWorker* MaintenanceManager::findWorker(const std::string& workerId) const
+{
+    return workers.find(workerId);
+}
+
 bool MaintenanceManager::removeWorker(const std::string& workerId)
 {
     MaintenanceWorker* worker = workers.find(workerId);
@@ -67,6 +72,7 @@ bool MaintenanceManager::isBetterCandidate(const MaintenanceWorker& candidate,
     }
     return candidate.getWorkerId() < currentBest.getWorkerId();   // tie-break
 }
+
 bool MaintenanceManager::isBetterCandidate(const MaintenanceWorker& candidate, int candidateDistance,
                                            const MaintenanceWorker& currentBest, int bestDistance)
 {
@@ -148,4 +154,48 @@ std::optional<std::string> MaintenanceManager::getAssignedWorker(const std::stri
         return std::nullopt;
     }
     return *assignedId;
+}
+
+// ---------- Persistence support ----------
+
+bool MaintenanceManager::restoreWorker(const MaintenanceWorker& worker)
+{
+    if (worker.getWorkerId().empty())
+    {
+        return false;
+    }
+    if (!workers.insert(worker.getWorkerId(), worker))
+    {
+        return false;                       // ID already present
+    }
+    reserveWorkerId(worker.getWorkerId());
+    return true;
+}
+
+bool MaintenanceManager::restoreAssignment(const std::string& complaintId, const std::string& workerId)
+{
+    if (complaintId.empty() || workers.find(workerId) == nullptr)
+    {
+        return false;
+    }
+    return assignments.insert(complaintId, workerId);
+}
+
+void MaintenanceManager::reserveWorkerId(const std::string& workerId)
+{
+    // IDs look like "W012": read the digits after the first character.
+    int number = 0;
+    for (int i = 1; i < static_cast<int>(workerId.size()); i++)
+    {
+        char c = workerId[i];
+        if (c < '0' || c > '9')
+        {
+            return;                         // not a generated ID: nothing to reserve
+        }
+        number = number * 10 + (c - '0');
+    }
+    if (number + 1 > workerCounter)
+    {
+        workerCounter = number + 1;
+    }
 }
