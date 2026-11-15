@@ -1,1 +1,22 @@
+cmake_minimum_required(VERSION 3.16)
+project(HostelHotspot LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+enable_testing()
+
+add_subdirectory(modules/maintenance)
+add_subdirectory(modules/complaint)
+add_subdirectory(modules/infrastructure)
+add_subdirectory(modules/student)
+
+add_executable(hostel_hotspot app/main.cpp)
+target_link_libraries(hostel_hotspot PRIVATE maintenance complaints infrastructure students)
+
+if(MSVC)
+    target_compile_options(hostel_hotspot PRIVATE /W4)
+else()
+    target_compile_options(hostel_hotspot PRIVATE -Wall -Wextra)
+endif()
