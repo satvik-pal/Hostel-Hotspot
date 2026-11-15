@@ -20,3 +20,17 @@ if(MSVC)
 else()
     target_compile_options(hostel_hotspot PRIVATE -Wall -Wextra)
 endif()
+find_package(Qt6 QUIET COMPONENTS Widgets)
+if(Qt6_FOUND)
+    message(STATUS "Qt6 found: building hostel_hotspot_gui")
+    add_executable(hostel_hotspot_gui
+        gui/main.cpp
+        gui/MainWindow.cpp
+        gui/AppCore.cpp
+    )
+    target_include_directories(hostel_hotspot_gui PRIVATE gui)
+    target_link_libraries(hostel_hotspot_gui PRIVATE
+        Qt6::Widgets maintenance complaints infrastructure students)
+else()
+    message(STATUS "Qt6 not found: skipping GUI (console app still builds)")
+endif()
